@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 """
-fabric file """
+fabric file
+"""
 
 from fabric.api import env, local, put, run
 from datetime import datetime

@@ -1,76 +1,113 @@
-#!/usr/bin/python3
-"""
-file storagee
+ #!/usr/bin/python3
+""""
+filestorage
 """
 
-import models
+import json
+
+from models.base_model import BaseModel
+
 from models.amenity import Amenity
-from models.base_model import BaseModel, Base
+
 from models.city import City
+
 from models.place import Place
+
 from models.review import Review
+
 from models.state import State
+
 from models.user import User
-from os import getenv
-import sqlalchemy
-from sqlalchemy import create_engine
-from sqlalchemy.orm import scoped_session, sessionmaker
-
-classes = {"Amenity": Amenity, "City": City,
-           "Place": Place, "Review": Review, "State": State, "User": User}
 
 
-class DBStorage:
-    """interacting with mysql"""
-    __engine = None
-    __session = None
 
-    def __init__(self):
-        """initlize"""
-        HBNB_MYSQL_USER = getenv('HBNB_MYSQL_USER')
-        HBNB_MYSQL_PWD = getenv('HBNB_MYSQL_PWD')
-        HBNB_MYSQL_HOST = getenv('HBNB_MYSQL_HOST')
-        HBNB_MYSQL_DB = getenv('HBNB_MYSQL_DB')
-        HBNB_ENV = getenv('HBNB_ENV')
-        self.__engine = create_engine('mysql+mysqldb://{}:{}@{}/{}'.
-                                      format(HBNB_MYSQL_USER,
-                                             HBNB_MYSQL_PWD,
-                                             HBNB_MYSQL_HOST,
-                                             HBNB_MYSQL_DB))
-        if HBNB_ENV == "test":
-            Base.metadata.drop_all(self.__engine)
+class FileStorage:
+
+    """file storage"""
+
+
+    __file_path = "file.json"
+
+    __objects = {}
+
 
     def all(self, cls=None):
+
         """all"""
-        _dict = {}
-        for clss in classes:
-            if cls is None or cls is classes[clss] or cls is clss:
-                objs = self.__session.query(classes[clss]).all()
-                for obj in objs:
-                    key = obj.__class__.__name__ + '.' + obj.id
-                    _dict[key] = obj
-        return (_dict)
+
+        if cls is not None:
+
+            if type(cls) == str:
+
+                cls = eval(cls)
+
+            cls_dict = {}
+
+            for k, v in self.__objects.items():
+
+                if type(v) == cls:
+
+                    cls_dict[k] = v
+
+            return cls_dict
+
+        return self.__objects
+
 
     def new(self, obj):
-        """add object"""
-        self.__session.add(obj)
+
+        """new"""
+
+        self.__objects["{}.{}".format(type(obj).__name__, obj.id)] = obj
+
 
     def save(self):
-        """commit()"""
-        self.__session.commit()
 
-    def delete(self, obj=None):
-        """delete"""
-        if obj is not None:
-            self.__session.delete(obj)
+        """save"""
+
+        odict = {o: self.__objects[o].to_dict() for o in self.__objects.keys()}
+
+        with open(self.__file_path, "w", encoding="utf-8") as f:
+
+            json.dump(odict, f)
+
 
     def reload(self):
-        """reloads"""
-        Base.metadata.create_all(self.__engine)
-        sess_factory = sessionmaker(bind=self.__engine, expire_on_commit=False)
-        Session = scoped_session(sess_factory)
-        self.__session = Session
+
+        """reload"""
+
+        try:
+
+            with open(self.__file_path, "r", encoding="utf-8") as f:
+
+                for o in json.load(f).values():
+
+                    name = o["__class__"]
+
+                    del o["__class__"]
+
+                    self.new(eval(name)(**o))
+
+        except FileNotFoundError:
+
+            pass
+
+
+    def delete(self, obj=None):
+
+        """delete"""
+
+        try:
+
+            del self.__objects["{}.{}".format(type(obj).__name__, obj.id)]
+
+        except (AttributeError, KeyError):
+
+            pass
+
 
     def close(self):
-        """remove"""
-        self.__session.remove()
+
+        """reload"""
+
+        self.reload()
